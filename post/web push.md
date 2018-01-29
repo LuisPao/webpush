@@ -9,40 +9,44 @@ web push
 
 - 实现
 
-  深入web push最新标准和具体实现有很多内容可以分享，所以我将分多篇文章来展开。内容主要参照Google web fundamentals，经由笔者的理解并归纳，倘若更新不及时或者有偏差，请以Google web fundamentals为准。
+  web push最新标准和具体实现有很多内容可以分享，所以我将分多篇文章来展开。内容主要参照Google web fundamentals，经由笔者的理解并归纳，倘若更新不及时或者有偏差，请以Google web fundamentals为准。
 
   - 鸟瞰
 
-    ​
+    在深入剖析之前，我们需要对整个Push过程有个概览，这里面会牵涉到相关的web APIs或一些从未接触的概念，此篇先简单带过，后续会对重要的概念进一步介绍。
+
+    实现Push的过程主要三个关键的点：1）客户端订阅推送服务、2）服务端触发推送、3）客户端展示推送内容。
+
+    - Step 1
+
+      订阅推送
+
+      首先，要获取当前用户浏览器在当前应用域名下**通知**的 **permission** ，我们最常见的是获取用户地理信息的 permission ，获取通知 permission 也类型，通过<u>Pemission APIs</u> 在特定时机以最佳的策略弹出弹窗供用户选择。这是至关重要的一步，我们要想方设法让用户只会点”允许“的按钮。
+
+      ![PC-Chrome](./img/notification-permission.png)
+
+      接着，假设浏览器已经支持 <u>Service Worker</u> 和 <u>Push APIs</u> ， 那我们要通过注册 Service Worker 文件并通过 Push APIs 获取到 **PushSubscription** （后简写：PushSub）。   PushSub 是一个Object ，也属于 Push APIs ，里面包含了当前用户的信息，需要交由服务端来保存管理，服务端触发推送要依赖 PushSub 才能推送给目标用户。
+
+      我们可以把 PushSub 理解为用户在当前浏览器当前应用域名下的 id ，那它到底是怎么生成的？想实现标准的 web push ，应用需要有一对Keys，称为 **application server keys**，服务端保留 private key ，客户端在订阅推送服务调用 Push API 的时候需要用到 public key ， promise-based 的 Push API 就会拿到 PushSub 。这里得先引入另外一个概念： **Push Service** ，在生成 PushSub 过程中，是得依赖于 Push Service ，它可以是浏览器厂商自己搭建的，也可以由第三方提供。 Push Service 拿到应用的 public key ，返回给浏览器 PushSub ，服务端再保存。
+
+    - step 2
+
+      触发推送
+
+      我们先来看看服务端保存的 PushSub 长什么样
+
+      ```json
+      {
+        "endpoint": "https://random-push-service.com/some-kind-of-unique-id-1234/v2/",
+        "keys": {
+          "p256dh" : "BNcRdreALRFXTkOOUHK1EtK2wtaz5Ry4YfYCA_0QTpQtUbVlUls0VJXg7A8u-Ts1XbjhazAkj7I99e8QcYP7DkM=",
+          "auth"   : "tBHItJI5svbpez7KI4CCXg=="
+        }
+      }
+      ```
+
+      endpoint 就是一个 URL ，域名  “random-push-service.com” 就是 Push Service
 
     ​
 
-  - 用户订阅
-
-    用户订阅主要包含两个过程。
-
-    第一，要获取用户对通知（notification）的许可。这是非常重要的一步，假如你获取不到用户的许可，对普通的用户来说，你基本上失去了对ta提供推送服务的机会了，因为要改变这个通知的状态，非常困难。所以一定要在合适的时机或选择一种能规避用户deny的方法来征求用户的许可。
-
-    - 特性检测
-
-    - 注册service worker
-
-      ​
-
-    第二，从pushSubscription（后面简写：pushSub）获取endpoint等信息并传给应用的server。那什么是pushSub？一个对象，包含实现Push相关的接口和信息，通过它可以拿到endpoint（url形式，可以理解为你的应用在用户当前浏览器的id）。
-
-  - server端推送
-
-    当client将pushSub给server，server需要将其保存到database。实际推送消息时，server基于web push protocol（IETF standard）调用pushSub里面的endpoint。
-
-    // todo：什么是endpoint？push service？
-
-    push service是由浏览器厂商决定的，开发者无法控制，但这并不是问题，因为每个push service的API调用是相同的（表达欠佳）。
-
-    消息体必须加密，因为是浏览器厂商决定使用哪个push service，不安全
-
-  - client端接收并处理
-
-    当push service接收到一条消息，用户设备在线的话push service就会向client发送消息。client接收到消息会触发service worker里面的push event，再根据情况向用户展示
-
-- 浏览器支持情况
+  ​
